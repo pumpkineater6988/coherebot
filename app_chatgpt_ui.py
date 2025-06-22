@@ -289,6 +289,30 @@ st.markdown("""
         background-color: #2563eb;
     }
 
+    /* Fix for buttons in sidebar */
+    section[data-testid="stSidebar"] .stButton button {
+        background-color: #252526;
+        color: #d4d4d4;
+        border: 1px solid #3c3c3c;
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+    section[data-testid="stSidebar"] .stButton button:hover {
+        background-color: #3c3c3c;
+        color: #ffffff;
+        border-color: #3a78ff;
+    }
+    section[data-testid="stSidebar"] .stButton button:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(58, 120, 255, 0.3);
+    }
+    
+    /* Center the icons in the bottom buttons */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]:last-of-type .stButton button {
+        font-size: 1.25rem;
+        text-align: center;
+    }
+
     /* Hide default Streamlit elements */
     #MainMenu, footer, header { visibility: hidden; }
     </style>
@@ -349,32 +373,28 @@ with st.sidebar:
                 st.session_state.processing = False
     
     # Bottom Action Buttons
-    st.markdown("""
-        <div style='position: absolute; bottom: 20px; left: 20px; right: 20px; border-top: 1px solid #3c3c3c; padding-top: 10px;'>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🗑️", key="clear", help="Clear Chat History"):
-            st.session_state.chat_history = []
-            st.rerun()
-    with col2:
-        if st.button("📤", key="export", help="Export Chat to CSV"):
-            if st.session_state.chat_history:
-                # Convert list of tuples to list of dicts for type-safe DataFrame creation
-                chat_data_for_df = [{"Role": role, "Message": msg} for role, msg in st.session_state.chat_history]
-                df = pd.DataFrame(chat_data_for_df)
-                st.download_button(
-                    label="Download CSV",
-                    data=df.to_csv(index=False),
-                    file_name="chat_history.csv",
-                    mime="text/csv",
-                    key="download_csv"
-                )
-    with col3:
-        if st.button("🔄", key="refresh", help="Refresh Page"):
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container():
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🗑️", key="clear", help="Clear Chat History"):
+                st.session_state.chat_history = []
+                st.rerun()
+        with col2:
+            if st.button("📤", key="export", help="Export Chat to CSV"):
+                if st.session_state.chat_history:
+                    # Convert list of tuples to list of dicts for type-safe DataFrame creation
+                    chat_data_for_df = [{"Role": role, "Message": msg} for role, msg in st.session_state.chat_history]
+                    df = pd.DataFrame(chat_data_for_df)
+                    st.download_button(
+                        label="Download CSV",
+                        data=df.to_csv(index=False),
+                        file_name="chat_history.csv",
+                        mime="text/csv",
+                        key="download_csv"
+                    )
+        with col3:
+            if st.button("🔄", key="refresh", help="Refresh Page"):
+                st.rerun()
 
 # ---- Main Chat Area ----
 # Create a container for the chat history
