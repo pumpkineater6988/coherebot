@@ -132,6 +132,7 @@ st.set_page_config(
 # Professional ChatGPT-like CSS (Dark Theme)
 st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
     html, body, [class*="st-"] {
@@ -347,12 +348,16 @@ with st.sidebar:
         st.markdown(f"<div style='padding: 8px 12px; background: #2d2d2d; border-radius: 6px; margin: 5px 0; font-size: 14px; color: #d4d4d4;'>{first_message}</div>", unsafe_allow_html=True)
 
     st.markdown("<h4 style='color: #d4d4d4; margin-bottom: 10px; margin-top: 20px; font-weight: 600;'>📎 Knowledge Base</h4>", unsafe_allow_html=True)
+    # Info for users about model loading
+    st.info("⏳ The first upload may take longer as the AI model is loading. Subsequent uploads will be faster.")
     uploaded_file = st.file_uploader(
         "Upload documents to provide context to the chatbot.",
         type=["pdf", "csv", "xlsx"],
         label_visibility="collapsed"
     )
     if uploaded_file and not st.session_state.processing:
+        import time
+        start_time = time.time()
         with st.spinner(f"Processing {uploaded_file.name}..."):
             st.session_state.processing = True
             try:
@@ -366,7 +371,14 @@ with st.sidebar:
                 
                 vectorstore = FAISS.from_documents(split_docs, embeddings)
                 st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-                st.success(f"✅ Processed {len(split_docs)} document chunks.")
+                # Show file name and type success message
+                st.success(f"✅ {uploaded_file.name} ({file_type}) uploaded and processed successfully!")
+                if len(split_docs) == 0:
+                    st.warning(f"⚠️ {uploaded_file.name} was uploaded, but no content was found to process.")
+                else:
+                    st.info(f"Processed {len(split_docs)} document chunks.")
+                elapsed = time.time() - start_time
+                st.info(f"⏱️ Processing time: {elapsed:.2f} seconds.")
             except Exception as e:
                 st.error(f"❌ Error processing file: {e}")
             finally:
