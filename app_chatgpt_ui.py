@@ -332,81 +332,92 @@ if "processing" not in st.session_state:
 # ---- Left Sidebar ----
 with st.sidebar:
     st.markdown("""
-        <div style="padding: 10px 0; border-bottom: 1px solid #3c3c3c; margin-bottom: 20px;">
-            <h2 style="margin: 0; color: #d4d4d4; font-size: 20px; font-weight: 600;">🤖 Cohere AI</h2>
+        <div style="padding: 15px 0; border-bottom: 1px solid #3c3c3c; margin-bottom: 20px;">
+            <h2 style="margin: 0; color: #d4d4d4; font-size: 22px; font-weight: 600;">🤖 Cohere AI</h2>
             <p style="margin: 5px 0 0 0; color: #a0a0a0; font-size: 14px;">Professional AI Assistant</p>
         </div>
     """, unsafe_allow_html=True)
     
-    if st.button("➕ New Chat", use_container_width=True):
+    # New Chat Button
+    if st.button("➕ New Chat", use_container_width=True, key="new_chat"):
         st.session_state.chat_history = []
         st.rerun()
 
-    st.markdown("<h4 style='color: #d4d4d4; margin-bottom: 10px; margin-top: 20px; font-weight: 600;'>📚 Recent Chats</h4>", unsafe_allow_html=True)
+    # Recent Chats Section
+    st.markdown("<h4 style='color: #d4d4d4; margin-bottom: 10px; margin-top: 25px; font-weight: 600;'>📚 Recent Chats</h4>", unsafe_allow_html=True)
     if st.session_state.chat_history:
         first_message = st.session_state.chat_history[0][1][:40] + "..." if len(st.session_state.chat_history[0][1]) > 40 else st.session_state.chat_history[0][1]
-        st.markdown(f"<div style='padding: 8px 12px; background: #2d2d2d; border-radius: 6px; margin: 5px 0; font-size: 14px; color: #d4d4d4;'>{first_message}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='padding: 10px 12px; background: #2d2d2d; border-radius: 6px; margin: 5px 0; font-size: 14px; color: #d4d4d4; border-left: 3px solid #3a78ff;'>{first_message}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='padding: 10px 12px; background: #2d2d2d; border-radius: 6px; margin: 5px 0; font-size: 14px; color: #a0a0a0; text-align: center;'>No recent chats</div>", unsafe_allow_html=True)
 
-    st.markdown("<h4 style='color: #d4d4d4; margin-bottom: 10px; margin-top: 20px; font-weight: 600;'>📎 Knowledge Base</h4>", unsafe_allow_html=True)
-    # Info for users about model loading
-    st.info("⏳ The first upload may take longer as the AI model is loading. Subsequent uploads will be faster.")
+    # Knowledge Base Section
+    st.markdown("<h4 style='color: #d4d4d4; margin-bottom: 10px; margin-top: 25px; font-weight: 600;'>📎 Knowledge Base</h4>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader(
         "Upload documents to provide context to the chatbot.",
         type=["pdf", "csv", "xlsx"],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="file_uploader"
     )
     if uploaded_file and not st.session_state.processing:
-        import time
-        start_time = time.time()
-        with st.spinner(f"Processing {uploaded_file.name}..."):
-            st.session_state.processing = True
-            try:
-                file_content = uploaded_file.read()
-                file_type = uploaded_file.name.split('.')[-1].lower()
-                docs, _ = process_file_content(file_content, file_type)
-                
-                embeddings = get_embeddings_model()
-                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-                split_docs = splitter.split_documents(docs)
-                
-                vectorstore = FAISS.from_documents(split_docs, embeddings)
-                st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-                # Show file name and type success message
-                st.success(f"✅ {uploaded_file.name} ({file_type}) uploaded and processed successfully!")
-                if len(split_docs) == 0:
-                    st.warning(f"⚠️ {uploaded_file.name} was uploaded, but no content was found to process.")
-                else:
-                    st.info(f"Processed {len(split_docs)} document chunks.")
-                elapsed = time.time() - start_time
-                st.info(f"⏱️ Processing time: {elapsed:.2f} seconds.")
-            except Exception as e:
-                st.error(f"❌ Error processing file: {e}")
-            finally:
-                st.session_state.processing = False
+        st.session_state.file_ready_to_train = uploaded_file.read()
+        st.session_state.uploaded_file_type = uploaded_file.name.split('.')[-1].lower()
+        st.session_state.uploaded_file_name = uploaded_file.name
+        st.success(f"File '{uploaded_file.name}' uploaded. Ready to train.")
+    # Train Button
+    if st.session_state.get('file_ready_to_train') and st.session_state.get('uploaded_file_type') and st.session_state.get('uploaded_file_name'):
+        if st.button("🚀 Train Knowledge Base", use_container_width=True, key="train_kb"):
+            with st.spinner(f"Training on {st.session_state.uploaded_file_name}..."):
+                st.session_state.processing = True
+                try:
+                    docs, _ = process_file_content(st.session_state.file_ready_to_train, str(st.session_state.uploaded_file_type))
+                    embeddings = get_embeddings_model()
+                    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                    split_docs = splitter.split_documents(docs)
+                    # Save vectorstore
+                    vectorstore = FAISS.from_documents(split_docs, embeddings)
+                    # Save to persistent location if needed (optional, see app.py)
+                    st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+                    st.success(f"✅ Trained and knowledge base ready with {len(split_docs)} chunks.")
+                    # Clear file after training
+                    st.session_state.file_ready_to_train = None
+                    st.session_state.uploaded_file_type = None
+                    st.session_state.uploaded_file_name = None
+                except Exception as e:
+                    st.error(f"❌ Error during training: {e}")
+                finally:
+                    st.session_state.processing = False
     
-    # Bottom Action Buttons
-    with st.container():
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("🗑️", key="clear", help="Clear Chat History"):
-                st.session_state.chat_history = []
-                st.rerun()
-        with col2:
-            if st.button("📤", key="export", help="Export Chat to CSV"):
-                if st.session_state.chat_history:
-                    # Convert list of tuples to list of dicts for type-safe DataFrame creation
-                    chat_data_for_df = [{"Role": role, "Message": msg} for role, msg in st.session_state.chat_history]
-                    df = pd.DataFrame(chat_data_for_df)
-                    st.download_button(
-                        label="Download CSV",
-                        data=df.to_csv(index=False),
-                        file_name="chat_history.csv",
-                        mime="text/csv",
-                        key="download_csv"
-                    )
-        with col3:
-            if st.button("🔄", key="refresh", help="Refresh Page"):
-                st.rerun()
+    # Action Buttons Section
+    st.markdown("<h4 style='color: #d4d4d4; margin-bottom: 10px; margin-top: 25px; font-weight: 600;'>⚙️ Actions</h4>", unsafe_allow_html=True)
+    
+    # Clear Chat Button
+    if st.button("🗑️ Clear Chat", use_container_width=True, key="clear_chat", help="Clear all chat history"):
+        st.session_state.chat_history = []
+        st.rerun()
+    
+    # Export Chat Button
+    if st.button("📤 Export Chat", use_container_width=True, key="export_chat", help="Export chat history to CSV"):
+        if st.session_state.chat_history:
+            # Convert list of tuples to list of dicts for type-safe DataFrame creation
+            chat_data_for_df = [{"Role": role, "Message": msg} for role, msg in st.session_state.chat_history]
+            df = pd.DataFrame(chat_data_for_df)
+            st.download_button(
+                label="Download CSV",
+                data=df.to_csv(index=False),
+                file_name="chat_history.csv",
+                mime="text/csv",
+                key="download_csv"
+            )
+        else:
+            st.warning("No chat history to export")
+    
+    # Refresh Button
+    if st.button("🔄 Refresh Page", use_container_width=True, key="refresh_page", help="Refresh the application"):
+        st.rerun()
+    
+    # Spacer
+    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
 # ---- Main Chat Area ----
 # Create a container for the chat history
